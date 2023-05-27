@@ -64,28 +64,26 @@ def apply_update(update):
         updated_content = apply_delta(previous_content, delta)
         previous_content = updated_content
         file_content = updated_content
-    print(file_content)
     text_widget.delete("1.0", tk.END)
     text_widget.insert(tk.END, file_content)
 
 # Apply the delta to the previous content to get the updated content
 def apply_delta(previous_content, delta):
-    print("previous: ", previous_content)
-    print("delta: ", delta)
     updated_content = previous_content.splitlines()
-    print(updated_content)
     count = 0
     for line in delta.splitlines():
-        print(line)
         if line.startswith("+ "):
             line_parts = line.split(" ", 2)
             line_num = int(line_parts[1])
             count = line_num
             if len(updated_content) > line_num:
-                updated_content.insert(line_num, line_parts[2])
+                if line_parts[2] == '':
+                    updated_content.insert(line_num, u'\u200b')
+                else:   
+                    updated_content.insert(line_num, line_parts[2])
             else:
                 if line_parts[2] == '':
-                    updated_content.append(' ')
+                    updated_content.append(u'\u200b')
                 else:   
                     updated_content.append(line_parts[2])
         elif line.startswith("- "):
@@ -94,7 +92,6 @@ def apply_delta(previous_content, delta):
             count = line_num
             del updated_content[line_num]
 
-    
     return "\n".join(updated_content)
 
 
@@ -107,36 +104,33 @@ def send_update(update, dest_ip, dest_port):
 
 def send_updated_content(event=None):
     global previous_content
-    updated_content = text_widget.get("1.0", tk.END)
 
+    updated_content = text_widget.get("1.0", tk.END)
     delta = calculate_delta(updated_content)
-    print('sent pre', previous_content)
-    print("sent after", updated_content)
-    print("sent delta", delta)
     send_update("DELTA " + delta, "127.0.0.1", 12345)
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(updated_content):
+
     global previous_content
     differ = difflib.ndiff(
         previous_content.splitlines(),
         updated_content.splitlines(),
     )
     previous_content = updated_content
-    print("calculate delta prev: ", previous_content)
-    print("calculate delta after: ", updated_content)
     delta = ""
     line_num = 0
     for line in differ:
         if line.startswith("+ "):
-            delta += "+ " + str(line_num + 1) + " " + line[2:] + "\n"
+            delta += "+ " + str(line_num) + " " + line[2:] + "\n"
             line_num += 1
         elif line.startswith("- "):
-            delta += "- " + str(line_num + 1) + "\n"
-            line_num -= 1
+            delta += "- " + str(line_num) + "\n"
+            #line_num -= 1
+        elif line.startswith("? "):
+            continue
         else:
             line_num += 1
-    
     return delta
 
         
@@ -146,7 +140,6 @@ def listener_thread():
 
 def create_gui():
     global text_widget
-
     root = tk.Tk()
     root.title("Client")
 

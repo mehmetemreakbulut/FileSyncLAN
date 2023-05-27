@@ -1,4 +1,5 @@
 import fcntl
+from multiprocessing import Process
 import os
 import socket
 import difflib
@@ -27,6 +28,8 @@ input_file_path = "input.txt"
 #create 32 bytes long shared key
 shared_key = b"12345678901234567890123456789012"
 secret_box = nacl.secret.SecretBox(shared_key)
+
+ip_adresses = []
 def decrypt_data(ciphertext):
     try:
         plaintext = secret_box.decrypt(ciphertext, encoder=HexEncoder)
@@ -64,8 +67,10 @@ def apply_update(update):
         updated_content = apply_delta(previous_content, delta)
         previous_content = updated_content
         file_content = updated_content
+    cursor_position = text_widget.index(tk.INSERT)
     text_widget.delete("1.0", tk.END)
     text_widget.insert(tk.END, file_content)
+    text_widget.mark_set(tk.INSERT, cursor_position)
 
 # Apply the delta to the previous content to get the updated content
 def apply_delta(previous_content, delta):
@@ -103,10 +108,9 @@ def send_update(update, dest_ip, dest_port):
 
 def send_updated_content(event=None):
     global previous_content
-
     updated_content = text_widget.get("1.0", tk.END)
     delta = calculate_delta(updated_content)
-    send_update("DELTA " + delta, "127.0.0.1", 12346)
+    send_update("DELTA " + delta, "192.168.1.27", 12345)
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(updated_content):
@@ -157,9 +161,42 @@ def create_gui():
 
     root.mainloop()
 
+def listen_udp():
+    port = 12346
+    global ip_adresses
+    global file_content
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((UDP_IP, 12346))
+
+    while True:
+        data, addr = sock.recvfrom(BUFFER_SIZE)
+        ip_adresses.append(addr[0])
+        print("received message:", data.decode())
+        print("received from:", addr)
+        if data.decode() == "hello":
+            sock.sendto(file_content.encode(), (addr[0], 12347))
+        else:
+            file_content = data.decode()
+
+
+
+def udp_broadcast():
+    hello_message = "hello"
+    data = hello_message.encode()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(('',0))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST,1)
+    sock.sendto(data,('<broadcast>',12346))
+    sock.close()
+
 if __name__ == '__main__':
     # Usage example
     # Start the listener thread
+    udp_broadcast()
+    listen_udp_process = threading.Thread(target=listen_udp)
+    listen_udp_process.start()
+
     listener_thread = threading.Thread(target=listener_thread)
     listener_thread.start()
     #print("Listener thread started.")

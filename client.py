@@ -35,7 +35,7 @@ def decrypt_data(ciphertext):
         return None
 
     # Encrypt the data using the shared key
-def encrypt_data(self, plaintext):
+def encrypt_data(plaintext):
     return secret_box.encrypt(plaintext.encode(), encoder=HexEncoder)
 
 def listen_for_updates():
@@ -99,10 +99,10 @@ def apply_delta(previous_content, delta):
                 line_num = int(line_parts[1])
                 if line_num <= len(updated_content):
                     del updated_content[line_num - 1]
-    
     for i in range(len(updated_content)):
+        if i >= len(updated_content):
+            break
         if i>=count:
-       
             del updated_content[i]
     
     return "\n".join(updated_content)
@@ -111,37 +111,39 @@ def apply_delta(previous_content, delta):
 # Send the file update to another client
 def send_update(update, dest_ip, dest_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto(update.encode(), (dest_ip, dest_port))
+    encrypted_data = encrypt_data(update)#removed encode
+    sock.sendto(encrypted_data, (dest_ip, dest_port))
     sock.close()
+
+def send_updated_content(event=None):
+    updated_content = text_widget.get("1.0", tk.END)
+    delta = calculate_delta(previous_content, updated_content)
+    print(delta)
+    send_update("DELTA " + delta, "127.0.0.1", 12346)
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(previous_content, updated_content):
-    differ = difflib.unified_diff(
+    print(previous_content.splitlines())
+    print(updated_content.splitlines())
+    differ = difflib.ndiff(
         previous_content.splitlines(),
         updated_content.splitlines(),
-        lineterm=""
     )
-    delta = []
+
+    delta = ""
     line_num = 0
     for line in differ:
+        print("line", line)
         if line.startswith("+ "):
-            delta += "+ " + str(line_num) + " " + line[2:] + "\n"
+            delta += "+ " + str(line_num + 1) + " " + line[2:] + "\n"
             line_num += 1
         elif line.startswith("- "):
-            delta += "- " + str(line_num) + "\n"
+            delta += "- " + str(line_num + 1) + "\n"
             line_num -= 1
 
-    return "\n".join(delta)
+    return delta
 
-
-def write_to_file(updated_content):
-    with open(file_path, "w") as file:
-        fcntl.flock(file, fcntl.LOCK_EX)  # Acquire an exclusive lock on the file
-        print(updated_content)
-        file.write(updated_content)
-        fcntl.flock(file, fcntl.LOCK_UN)  # Release the lock
         
-# Thread function to handle the listener
 def listener_thread():
     listen_for_updates()
 
@@ -154,7 +156,7 @@ def create_gui():
     global text_widget
 
     root = tk.Tk()
-    root.title("Receiver")
+    root.title("Client")
 
     frame = tk.Frame(root)
     frame.pack(pady=10)
@@ -167,10 +169,11 @@ def create_gui():
 
     scrollbar.config(command=text_widget.yview)
 
-    save_button = tk.Button(root, text="Save", command=send_updated_content)
-    save_button.pack(pady=10)
+    text_widget.bind("<KeyRelease>", send_updated_content)
 
     root.mainloop()
+    root.mainloop()
+
 
 if __name__ == '__main__':
     # Usage example

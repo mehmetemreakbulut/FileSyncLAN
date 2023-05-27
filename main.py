@@ -5,6 +5,7 @@ import difflib
 import threading
 from time import sleep
 import tkinter as tk
+from tkinter import scrolledtext
 
 
 import nacl.secret
@@ -49,14 +50,15 @@ def listen_for_updates():
         if plaintext is None:
             print("Failed to decrypt data from", addr)
             continue
-        update = plaintext.decode()
+        update = plaintext
         apply_update(update)
 
 # Apply the received file update
 def apply_update(update):
     global file_content
     global previous_content
-
+    print("update")
+    print(update)
     if update.startswith("INIT"):
         file_content = update.split(" ", 1)[1]
         previous_content = file_content
@@ -67,25 +69,43 @@ def apply_update(update):
         previous_content = updated_content
         file_content = updated_content
         print("File content updated.")
+    print(file_content)
     text_widget.delete("1.0", tk.END)
     text_widget.insert(tk.END, file_content)
 
 # Apply the delta to the previous content to get the updated content
 def apply_delta(previous_content, delta):
     updated_content = previous_content.splitlines()
-
+    print(len(updated_content))
+    count = 0
     for line in delta.splitlines():
+        count += 1
         if line.startswith("+ "):
             line_parts = line.split(" ", 2)
             line_num = int(line_parts[1])
-            updated_content[line_num - 1] = line_parts[2]
+            
+            if len(updated_content) >= line_num:
+                if line_num==0:
+                    updated_content[0] = line_parts[2]
+                else:
+                    updated_content[line_num - 1] = line_parts[2]
+            else:
+                if line_num==0:
+                    updated_content[0] = line_parts[2]
+                else:
+                    updated_content.append(line_parts[2])
         elif line.startswith("- "):
             line_parts = line.split(" ", 1)
             if len(line_parts) > 1:
                 line_num = int(line_parts[1])
                 if line_num <= len(updated_content):
                     del updated_content[line_num - 1]
-
+    for i in range(len(updated_content)):
+        if i >= len(updated_content):
+            break
+        if i>=count:
+            del updated_content[i]
+    
     return "\n".join(updated_content)
 
 
@@ -104,6 +124,8 @@ def send_updated_content(event=None):
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(previous_content, updated_content):
+    print(previous_content.splitlines())
+    print(updated_content.splitlines())
     differ = difflib.ndiff(
         previous_content.splitlines(),
         updated_content.splitlines(),
@@ -112,7 +134,7 @@ def calculate_delta(previous_content, updated_content):
     delta = ""
     line_num = 0
     for line in differ:
-        print(line)
+        print("line", line)
         if line.startswith("+ "):
             delta += "+ " + str(line_num + 1) + " " + line[2:] + "\n"
             line_num += 1
@@ -122,13 +144,6 @@ def calculate_delta(previous_content, updated_content):
 
     return delta
 
-
-def write_to_file(updated_content):
-    with open(file_path, "w") as file:
-        fcntl.flock(file, fcntl.LOCK_EX)  # Acquire an exclusive lock on the file
-        print(updated_content)
-        file.write(updated_content)
-        fcntl.flock(file, fcntl.LOCK_UN)  # Release the lock
         
 # Thread function to handle the listener
 def listener_thread():
@@ -154,35 +169,11 @@ def create_gui():
     text_widget.bind("<KeyRelease>", send_updated_content)
 
     root.mainloop()
-    root.mainloop()
 
 if __name__ == '__main__':
     # Usage example
     # Start the listener thread
-    #listener_thread = threading.Thread(target=listener_thread)
-    #listener_thread.start()
+    listener_thread = threading.Thread(target=listener_thread)
+    listener_thread.start()
     #print("Listener thread started.")
     create_gui()
-    last_update_time = 0
-    while True:
-        update_time = os.path.getmtime(input_file_path)
-        if update_time > last_update_time:
-            last_update_time = update_time
-            with open(input_file_path, "r") as f:
-                updated_content = f.read()
-            delta = calculate_delta(previous_content, updated_content)
-            print("delta:"  + delta)
-            send_update("DELTA " + delta, "127.0.0.1", 12346)
-            previous_content = updated_content
-            file_content = updated_content
-            print("File content updated.")
-        sleep(1)
-        
-    # Continue with other operations, e.g., sending updates
-    # Initialize the file content
-    send_update("INIT Hello, World!", "127.0.0.1", 12345)
-
-    # Update the file content and send the delta
-    updated_content = "Hello, New World!"
-    delta = calculate_delta(previous_content, updated_content)
-    send_update("DELTA " + delta, "127.0.0.1", 12345)

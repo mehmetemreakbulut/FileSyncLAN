@@ -32,6 +32,7 @@ shared_key = b"12345678901234567890123456789012"
 secret_box = nacl.secret.SecretBox(shared_key)
 
 ip_adresses = []
+MY_IP  = "192.168.1.96"
 def decrypt_data(ciphertext):
     try:
         plaintext = secret_box.decrypt(ciphertext, encoder=HexEncoder)
@@ -53,6 +54,8 @@ def listen_for_updates():
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
     while True:
         data, addr = sock.recvfrom(BUFFER_SIZE)
+        if str(addr[0]) == MY_IP:
+            continue
         print("Received file update from " + str(addr))
         plaintext = decrypt_data(data)
         if plaintext is None:
@@ -106,7 +109,7 @@ def apply_delta(previous_content, delta):
 
 
 # Send the file update to another client
-def send_update(update, dest_ip, dest_port):
+def send_update(update, dest_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     MULTICAST_TTL = 2
 
@@ -122,8 +125,7 @@ def send_updated_content(event=None):
     global ip_adresses
     updated_content = text_widget.get("1.0", tk.END)
     delta = calculate_delta(updated_content)
-    for ip in ip_adresses:
-        send_update("DELTA " + delta, ip, 12345)
+    send_update("DELTA " + delta,  12345)
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(updated_content):

@@ -56,26 +56,22 @@ def listen_for_updates():
 def apply_update(update):
     global file_content
     global previous_content
-    print("update")
-    print(update)
     if update.startswith("INIT"):
         file_content = update.split(" ", 1)[1]
         previous_content = file_content
-        print("File content initialized.")
     elif update.startswith("DELTA"):
         delta = update.split(" ", 1)[1]
         updated_content = apply_delta(previous_content, delta)
         previous_content = updated_content
         file_content = updated_content
-        print("File content updated.")
-    print(file_content)
     text_widget.delete("1.0", tk.END)
     text_widget.insert(tk.END, file_content)
 
 # Apply the delta to the previous content to get the updated content
 def apply_delta(previous_content, delta):
+    print("previous: ", previous_content)
+    print("delta: ", delta)
     updated_content = previous_content.splitlines()
-    print(len(updated_content))
     count = 0
     for line in delta.splitlines():
         count += 1
@@ -117,38 +113,44 @@ def send_update(update, dest_ip, dest_port):
 
 def send_updated_content(event=None):
     global previous_content
-    global file_content
 
     updated_content = text_widget.get("1.0", tk.END)
-    print('pre', previous_content)
-    delta = calculate_delta(previous_content, updated_content)
-    
-    print(delta)
+    print('sent pre', previous_content)
+    print("sent after", updated_content)
+    delta = calculate_delta(updated_content)
+    print("sent delta", delta)
     send_update("DELTA " + delta, "127.0.0.1", 12346)
 
 # Calculate the delta between two versions of the file content
-def calculate_delta(previous_content, updated_content):
+def calculate_delta(updated_content):
+
+    global previous_content
     print(previous_content.splitlines())
     print(updated_content.splitlines())
     differ = difflib.ndiff(
         previous_content.splitlines(),
         updated_content.splitlines(),
     )
-    
+    print("cjcbshjkdabaskdbas")
     previous_content = updated_content
     delta = ""
     line_num = 0
+    # print(len(list(differ)))
     for line in differ:
-        print("line", line)
+        print("line: ", line)
+        print(type(line))
         if line.startswith("+ "):
-            delta += "+ " + str(line_num + 1) + " " + line[2:] + "\n"
+            print("addition")
+            delta += "+ " + str(line_num) + " " + line[2:] + "\n"
             line_num += 1
         elif line.startswith("- "):
-            delta += "- " + str(line_num + 1) + "\n"
-            line_num -= 1
+            delta += "- " + str(line_num) + "\n"
+            #line_num -= 1
+        elif line.startswith("? "):
+            continue
         else:
             line_num += 1
-
+    print("delta: ", delta)
     return delta
 
         

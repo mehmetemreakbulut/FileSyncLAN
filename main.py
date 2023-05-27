@@ -116,8 +116,13 @@ def send_update(update, dest_ip, dest_port):
     sock.close()
 
 def send_updated_content(event=None):
+    global previous_content
+    global file_content
+
     updated_content = text_widget.get("1.0", tk.END)
+    print('pre', previous_content)
     delta = calculate_delta(previous_content, updated_content)
+    
     print(delta)
     send_update("DELTA " + delta, "127.0.0.1", 12346)
 
@@ -129,7 +134,8 @@ def calculate_delta(previous_content, updated_content):
         previous_content.splitlines(),
         updated_content.splitlines(),
     )
-
+    
+    previous_content = updated_content
     delta = ""
     line_num = 0
     for line in differ:
@@ -140,6 +146,8 @@ def calculate_delta(previous_content, updated_content):
         elif line.startswith("- "):
             delta += "- " + str(line_num + 1) + "\n"
             line_num -= 1
+        else:
+            line_num += 1
 
     return delta
 
@@ -150,9 +158,8 @@ def listener_thread():
 
 def create_gui():
     global text_widget
-
     root = tk.Tk()
-    root.title("Shared File Editor")
+    root.title("main")
 
     frame = tk.Frame(root)
     frame.pack(pady=10)

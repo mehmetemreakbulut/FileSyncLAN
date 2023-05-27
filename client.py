@@ -117,8 +117,8 @@ def send_update(update, dest_ip, dest_port):
 
 def send_updated_content(event=None):
     updated_content = text_widget.get("1.0", tk.END)
+
     delta = calculate_delta(previous_content, updated_content)
-    print(delta)
     send_update("DELTA " + delta, "127.0.0.1", 12345)
 
 # Calculate the delta between two versions of the file content
@@ -129,7 +129,7 @@ def calculate_delta(previous_content, updated_content):
         previous_content.splitlines(),
         updated_content.splitlines(),
     )
-
+    previous_content = updated_content
     delta = ""
     line_num = 0
     for line in differ:
@@ -140,7 +140,9 @@ def calculate_delta(previous_content, updated_content):
         elif line.startswith("- "):
             delta += "- " + str(line_num + 1) + "\n"
             line_num -= 1
-
+        else:
+            line_num += 1
+    
     return delta
 
         

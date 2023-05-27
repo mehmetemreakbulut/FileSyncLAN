@@ -3,6 +3,7 @@ from multiprocessing import Process
 import os
 import socket
 import difflib
+import struct
 import threading
 from time import sleep
 import tkinter as tk
@@ -18,6 +19,7 @@ UDP_IP = "0.0.0.0"
 UDP_PORT = 12345
 BUFFER_SIZE = 1024
 
+MULTICAST_IP = '224.0.0.1' 
 # Initialize the file content and previous content
 file_content = ""
 previous_content = ""
@@ -43,8 +45,12 @@ def encrypt_data(plaintext):
 
 def listen_for_updates():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((UDP_IP, 12345))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((MULTICAST_IP, 12345))
 
+    mreq = struct.pack("4sl", socket.inet_aton(MULTICAST_IP), socket.INADDR_ANY)
+
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
     while True:
         data, addr = sock.recvfrom(BUFFER_SIZE)
         print("Received file update from " + str(addr))
@@ -102,8 +108,12 @@ def apply_delta(previous_content, delta):
 # Send the file update to another client
 def send_update(update, dest_ip, dest_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    MULTICAST_TTL = 2
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
     encrypted_data = encrypt_data(update)#removed encode
-    sock.sendto(encrypted_data, (dest_ip, dest_port))
+    sock.sendto(encrypted_data, (MULTICAST_IP, dest_port))
     sock.close()
 
 def send_updated_content(event=None):

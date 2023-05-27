@@ -119,7 +119,7 @@ def send_updated_content(event=None):
     updated_content = text_widget.get("1.0", tk.END)
     delta = calculate_delta(previous_content, updated_content)
     print(delta)
-    send_update("DELTA " + delta, "127.0.0.1", 12346)
+    send_update("DELTA " + delta, "127.0.0.1", 12345)
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(previous_content, updated_content):
@@ -144,19 +144,15 @@ def calculate_delta(previous_content, updated_content):
     return delta
 
         
+# Thread function to handle the listener
 def listener_thread():
     listen_for_updates()
-
-def send_updated_content(event=None):
-    updated_content = text_widget.get("1.0", tk.END)
-    delta = calculate_delta(previous_content, updated_content)
-    send_update("DELTA " + delta, "127.0.0.1", 12345)
 
 def create_gui():
     global text_widget
 
     root = tk.Tk()
-    root.title("Client")
+    root.title("Shared File Editor")
 
     frame = tk.Frame(root)
     frame.pack(pady=10)
@@ -172,12 +168,11 @@ def create_gui():
     text_widget.bind("<KeyRelease>", send_updated_content)
 
     root.mainloop()
-    root.mainloop()
-
 
 if __name__ == '__main__':
     # Usage example
     # Start the listener thread
     listener_thread = threading.Thread(target=listener_thread)
     listener_thread.start()
+    #print("Listener thread started.")
     create_gui()

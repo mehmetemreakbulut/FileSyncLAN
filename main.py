@@ -5,7 +5,6 @@ import difflib
 import threading
 from time import sleep
 import tkinter as tk
-from tkinter import scrolledtext
 
 
 import nacl.secret

@@ -108,9 +108,12 @@ def send_update(update, dest_ip, dest_port):
 
 def send_updated_content(event=None):
     global previous_content
+
+    global ip_adresses
     updated_content = text_widget.get("1.0", tk.END)
     delta = calculate_delta(updated_content)
-    send_update("DELTA " + delta, "192.168.1.27", 12345)
+    for ip in ip_adresses:
+        send_update("DELTA " + delta, ip, 12345)
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(updated_content):
@@ -143,6 +146,7 @@ def listener_thread():
 
 def create_gui():
     global text_widget
+    global previous_content
     root = tk.Tk()
     root.title("main")
 
@@ -157,7 +161,10 @@ def create_gui():
 
     scrollbar.config(command=text_widget.yview)
 
+    text_widget.delete("1.0", tk.END)
+    text_widget.insert(tk.END, previous_content)
     text_widget.bind("<KeyRelease>", send_updated_content)
+
 
     root.mainloop()
 
@@ -165,7 +172,7 @@ def listen_udp():
     port = 12346
     global ip_adresses
     global file_content
-
+    global previous_content
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((UDP_IP, 12346))
 
@@ -175,9 +182,13 @@ def listen_udp():
         print("received message:", data.decode())
         print("received from:", addr)
         if data.decode() == "hello":
-            sock.sendto(file_content.encode(), (addr[0], 12347))
+            new_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            new_sock.bind(('',0))
+            print(previous_content)
+            new_sock.sendto(previous_content.encode(), (addr[0], 12346))
+            new_sock.close()
         else:
-            file_content = data.decode()
+            previous_content = data.decode()[:-1]
 
 
 

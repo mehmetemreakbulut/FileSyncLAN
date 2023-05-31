@@ -2,10 +2,12 @@ import fcntl
 from multiprocessing import Process
 import multiprocessing
 import os
+import signal
 import socket
 import difflib
 import struct
 import subprocess
+import sys
 import threading
 from time import sleep
 import tkinter as tk
@@ -249,16 +251,15 @@ if __name__ == '__main__':
     network_data = get_network_data() 
     MY_IP = network_data[0]
     udp_broadcast()
-    listen_udp_process = multiprocessing.Process(target=listen_udp)
+    listen_udp_process = threading.Thread(target=listen_udp)
     listen_udp_process.start()
 
-    listener_process =  multiprocessing.Process(target=listener_thread)
+    listener_process =  threading.Thread(target=listener_thread)
     listener_process.start()
     #print("Listener thread started.")
     create_gui()
 
     close_command = input("Press write CLOSE to close the program.\n")
     if close_command == "CLOSE":
-        listen_udp_process.terminate()
-        listener_process.terminate()
-        exit()
+        os.kill(os.getpid(),signal.SIGKILL)
+

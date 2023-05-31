@@ -30,6 +30,7 @@ MULTICAST_IP = '224.0.0.1'
 # Initialize the file content and previous content
 file_content = ""
 previous_content = ""
+file_name = 'shared_file.txt'
 
 # Listen for incoming file updates
 
@@ -166,7 +167,7 @@ def listener_thread():
 
 def save_text_to_file():
     global previous_content
-    with open(file_path, 'w') as file:
+    with open(file_name, 'w') as file:
         file.write(previous_content)
 def create_gui():
     global text_widget

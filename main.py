@@ -1,12 +1,16 @@
 import fcntl
 from multiprocessing import Process
+import multiprocessing
 import os
 import socket
 import difflib
 import struct
+import subprocess
 import threading
 from time import sleep
 import tkinter as tk
+from typing import Tuple
+import jc
 
 
 import nacl.secret
@@ -16,15 +20,15 @@ from nacl.exceptions import CryptoError
 
 
 UDP_IP = "0.0.0.0"
-UDP_PORT = 12345
+PORT = 12345
+BROADCAST_PORT = 12346
 BUFFER_SIZE = 1024
 
 MULTICAST_IP = '224.0.0.1' 
 # Initialize the file content and previous content
 file_content = ""
 previous_content = ""
-file_path = "test.txt"
-input_file_path = "input.txt"
+
 # Listen for incoming file updates
 
 #create 32 bytes long shared key
@@ -32,7 +36,7 @@ shared_key = b"12345678901234567890123456789012"
 secret_box = nacl.secret.SecretBox(shared_key)
 
 ip_adresses = []
-MY_IP  = "192.168.1.96"
+MY_IP  = ""
 def decrypt_data(ciphertext):
     try:
         plaintext = secret_box.decrypt(ciphertext, encoder=HexEncoder)
@@ -45,9 +49,11 @@ def encrypt_data(plaintext):
     return secret_box.encrypt(plaintext.encode(), encoder=HexEncoder)
 
 def listen_for_updates():
+    global PORT
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((MULTICAST_IP, 12345))
+    sock.bind((MULTICAST_IP, PORT))
 
     mreq = struct.pack("4sl", socket.inet_aton(MULTICAST_IP), socket.INADDR_ANY)
 
@@ -121,11 +127,11 @@ def send_update(update, dest_port):
 
 def send_updated_content(event=None):
     global previous_content
-
+    global PORT
     global ip_adresses
     updated_content = text_widget.get("1.0", tk.END)
     delta = calculate_delta(updated_content)
-    send_update("DELTA " + delta,  12345)
+    send_update("DELTA " + delta,  PORT)
 
 # Calculate the delta between two versions of the file content
 def calculate_delta(updated_content):
@@ -156,6 +162,10 @@ def calculate_delta(updated_content):
 def listener_thread():
     listen_for_updates()
 
+def save_text_to_file():
+    global previous_content
+    with open(file_path, 'w') as file:
+        file.write(previous_content)
 def create_gui():
     global text_widget
     global previous_content
@@ -176,15 +186,20 @@ def create_gui():
     text_widget.delete("1.0", tk.END)
     text_widget.insert(tk.END, previous_content)
     text_widget.bind("<KeyRelease>", send_updated_content)
+    save_button = tk.Button(root, height=1, width=10, text="Set",
+                    command=save_text_to_file)
+ 
+    save_button.pack()
 
 
     root.mainloop()
 
 def listen_udp():
-    port = 12346
+    
     global ip_adresses
     global file_content
     global previous_content
+    global BROADCAST_PORT
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((UDP_IP, 12346))
 
@@ -197,7 +212,7 @@ def listen_udp():
             new_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             new_sock.bind(('',0))
             print(previous_content)
-            new_sock.sendto(previous_content.encode(), (addr[0], 12346))
+            new_sock.sendto(previous_content.encode(), (addr[0], BROADCAST_PORT))
             new_sock.close()
         else:
             previous_content = data.decode()[:-1]
@@ -205,22 +220,45 @@ def listen_udp():
 
 
 def udp_broadcast():
+    global BROADCAST_PORT
     hello_message = "hello"
     data = hello_message.encode()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('',0))
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST,1)
-    sock.sendto(data,('<broadcast>',12346))
+    sock.sendto(data,('<broadcast>',BROADCAST_PORT))
     sock.close()
+
+def get_network_data()-> Tuple[str, str]:
+    if_config_process = subprocess.run(["ifconfig"], capture_output=True, text=True).stdout.strip()
+    result = jc.parse('ifconfig', if_config_process )
+    my_ip = 0
+    mask = 0
+
+    for a in result:
+        if(a['name']=='en0'):
+            my_ip=a['ipv4_addr']
+            mask = a['ipv4_mask']
+            
+    return my_ip, mask
+
 
 if __name__ == '__main__':
     # Usage example
     # Start the listener thread
+    network_data = get_network_data() 
+    MY_IP = network_data[0]
     udp_broadcast()
-    listen_udp_process = threading.Thread(target=listen_udp)
+    listen_udp_process = multiprocessing.Process(target=listen_udp)
     listen_udp_process.start()
 
-    listener_thread = threading.Thread(target=listener_thread)
-    listener_thread.start()
+    listener_process =  multiprocessing.Process(target=listener_thread)
+    listener_process.start()
     #print("Listener thread started.")
     create_gui()
+
+    close_command = input("Press write CLOSE to close the program.\n")
+    if close_command == "CLOSE":
+        listen_udp_process.terminate()
+        listener_process.terminate()
+        exit()

@@ -189,7 +189,7 @@ def create_gui():
     text_widget.delete("1.0", tk.END)
     text_widget.insert(tk.END, previous_content)
     text_widget.bind("<KeyRelease>", send_updated_content)
-    save_button = tk.Button(root, height=1, width=10, text="Set",
+    save_button = tk.Button(root, height=1, width=10, text="Save",
                     command=save_text_to_file)
  
     save_button.pack()
